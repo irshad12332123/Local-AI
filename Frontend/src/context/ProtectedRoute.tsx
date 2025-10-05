@@ -1,33 +1,27 @@
 import { Navigate } from "react-router-dom";
-import { useAuth } from "./authProvider"; 
-import { useEffect, useState, type JSX } from "react";
+import { useAuth } from "./authProvider";
+import Loader from "../components/Loader";
+import type { JSX } from "react";
 
 interface Props {
   children: JSX.Element;
 }
 
 const ProtectedRoute = ({ children }: Props) => {
-  const { loading } = useAuth();
-  const [isLoading, setIsLoading] = useState<boolean>(loading)
-  const [error, setError] = useState<string>("");
-  const accessToken = localStorage.getItem("accessToken");
+  const { loading, accessToken } = useAuth();
 
-  useEffect(() => {
-    try {
-      if (accessToken) {
-    console.log("ACCESS TOKEN UPDATED IN STATE:", accessToken);
+  if (loading)
+    return (
+      <div className="bg-[#0b0219] h-screen w-screen flex justify-center items-center">
+        <Loader variant="bar" />
+      </div>
+    );
+
+  if (!loading && !accessToken) {
+    return <Navigate to="/login" replace />;
   }
-    } catch (error) {
-      setError('Some error occured');
-      }
-    finally{
-      setIsLoading(false);
-    }
-  }, [accessToken]);
 
-  if (isLoading) return <div className="flex h-screen w-screen justify-center items-center text-4xl">Loading...</div>;
-  if (error) return  <div className="flex h-screen w-screen justify-center items-center text-4xl">{error}</div>
-  return accessToken ? children : <Navigate to="/login" replace />;
+  return children;
 };
 
 export default ProtectedRoute;

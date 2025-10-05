@@ -5,10 +5,6 @@ import {jwtDecode} from "jwt-decode";
 const API_BASE_URL = "http://localhost:3000";
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const getLocaStorageItem = (item: string) => {
-    return localStorage.getItem(`${item}`);
-}
-
 export const useAuth = (): AuthContextType => {
 
   const context = useContext(AuthContext);
@@ -22,12 +18,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const getLocalStorageItem = (item: string) => {
+    return localStorage.getItem(`${item}`);
+}
 
-  useEffect(() => {
-  if (accessToken) {
-    console.log("ACCESS TOKEN UPDATED IN STATE:", accessToken);
-  }
-  }, [accessToken]);
+    const removeLocalStorageItem = (item: string) => {
+    localStorage.removeItem(`${item}`);
+}
+
+    useEffect(() => {
+    const storedToken = getLocalStorageItem("accessToken");
+    const storedUser = getLocalStorageItem("userDetails");
+
+    if (storedToken && storedUser) {
+      setAccessToken(storedToken);
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch (error) {
+        console.error("Error parsing userDetails from localStorage:", error);
+        localStorage.removeItem("userDetails");
+      }
+    }
+  }, []);
 
   const decodeUser = (token: string): User => {
     const decoded: any = jwtDecode(token);
@@ -37,6 +49,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 const login = async (username: string, password: string): Promise<void> => {
   try {
+    setLoading(true);
     const response = await fetch(`${API_BASE_URL}/auth/login`, {
       method: "POST",
       body: JSON.stringify({ username, password }),
@@ -53,28 +66,40 @@ const login = async (username: string, password: string): Promise<void> => {
       throw new Error(analystData.message);
     }
 
+    const decodedUser = decodeUser(analystData.accessToken);
+
+    setAccessToken(analystData.accessToken);
+    setUser(decodedUser);
+
     localStorage.setItem("accessToken", analystData.accessToken);
-    localStorage.setItem("userDetails", JSON.stringify(decodeUser(analystData.accessToken)));
-    setAccessToken(getLocaStorageItem("accesToken"));
-    const userDetailsString = getLocaStorageItem("userDetails");
-    setUser(userDetailsString ? JSON.parse(userDetailsString) : null);
+    localStorage.setItem("userDetails", JSON.stringify(decodedUser));
+
   } catch (error) {
     setUser(null);
     setAccessToken(null);
     if (error instanceof Error) throw new Error(error.message);
     throw error;
-
   } finally {
     setLoading(false);
-    console.log("AFTER SETTING THE LOADING TO FALSE IN FINALLY BLOCK: ", loading);
   }
 };
 
+
   const logout = async () => {
-    setAccessToken(null);
-    setUser(null);
-    localStorage.removeItem("accessToken");
-  };
+    try {
+      setLoading(true);
+      removeLocalStorageItem("accessToken");
+      setAccessToken(null);
+      setUser(null);  
+      removeLocalStorageItem("userDetails");
+    } catch (error) {
+      if(error instanceof Error) {
+        throw new Error(`Error occured: ${error.message}`);
+      }
+    }finally{
+      setLoading(false);
+    }
+  }
 
   return (
     <AuthContext.Provider value={{ user, accessToken, login, logout, loading }}>
